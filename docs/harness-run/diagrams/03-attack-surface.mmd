@@ -1,0 +1,25 @@
+flowchart LR
+    subgraph endpoints["HTTP endpoint"]
+        Q["GET /issues/search"]
+        R["POST /reports/export"]
+        U["POST /users/register"]
+        A["GET /attachments/{name}"]
+        B["POST /backups/restore"]
+    end
+    subgraph sinks["Vulnerable sink"]
+        Q --> Qs["string-concat SQL"]
+        R --> Rs["/bin/sh -c + label"]
+        U --> Us["MD5 + hardcoded pepper"]
+        A --> As["Path.Combine + ReadAllBytes"]
+        B --> Bs["TypeNameHandling.All"]
+    end
+    Qs --> Qv["EXPLOITED — dumped all rows + UNION"]
+    Rs --> Rv["EXPLOITED — RCE, id output returned"]
+    Us --> Uv["EXPLOITED — hash cracked offline"]
+    As --> Av["LATENT — Kestrel kept %2f literal"]
+    Bs --> Bv["LATENT — sync body-read threw first"]
+
+    classDef ok fill:#d6f0e2,stroke:#1c7a52,color:#14321f;
+    classDef no fill:#f6e7c6,stroke:#96660f,color:#4a3410;
+    class Qv,Rv,Uv ok;
+    class Av,Bv no;

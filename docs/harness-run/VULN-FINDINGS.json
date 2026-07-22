@@ -1,0 +1,106 @@
+{
+  "target": "targets/issueblot",
+  "scanned_at": "2026-07-22T10:15:00Z",
+  "scanner": "/vuln-scan skill (single-pass; target < 15 source files)",
+  "focus_areas": [
+    "IssueRepository (issue search) — free-text query into a SQL command",
+    "AttachmentService (attachment download) — route name into a file path",
+    "ReportExporter (report export) — export params into an external process",
+    "BackupService (restore) — request body into a deserializer",
+    "PasswordHasher (registration) — password into a hashing routine"
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "file": "src/Data/IssueRepository.cs",
+      "line": 21,
+      "category": "sql-injection",
+      "severity": "HIGH",
+      "confidence": 0.97,
+      "title": "SQL injection via string-concatenated LIKE clause in issue search",
+      "description": "Search() builds CommandText by concatenating the untrusted `query` argument directly into a SQL string: \"... WHERE title LIKE '%\" + query + \"%' ...\". `query` is the `q` value from GET /issues/search (Program.cs:25). No parameterization or escaping. An attacker closes the string literal and injects arbitrary SQL.",
+      "exploit_scenario": "GET /issues/search?q=' OR 1=1-- returns every row regardless of the intended LIKE filter; a UNION SELECT extracts arbitrary data (e.g. sqlite_version(), other tables).",
+      "recommendation": "Use a parameterized query: command.CommandText = \"... WHERE title LIKE @q ...\"; command.Parameters.AddWithValue(\"@q\", \"%\" + query + \"%\").",
+      "confidence_reason": "Textbook string-concatenated SQL with directly attacker-controlled input reaching ExecuteReader."
+    },
+    {
+      "id": "F-002",
+      "file": "src/Export/ReportExporter.cs",
+      "line": 13,
+      "category": "command-injection",
+      "severity": "HIGH",
+      "confidence": 0.96,
+      "title": "OS command injection via unsanitized label in /bin/sh -c argument",
+      "description": "Export() constructs a shell command by concatenating the untrusted `label` (and `format`) into an Arguments string executed by /bin/sh -c: \"-c \\\"pandoc -t \" + format + \" -o /tmp/report_\" + label + \".out\\\"\". Both fields come from the POST /reports/export JSON body (Program.cs:32). Shell metacharacters in `label`/`format` break out of the intended command.",
+      "exploit_scenario": "POST /reports/export with label = \"x; id; touch /tmp/pwned #\" runs `id` (and any command) as the server user; stdout is returned in the HTTP response.",
+      "recommendation": "Do not build a shell string from input. Invoke the converter directly with an argument array (no /bin/sh), and validate `format` against an allowlist. Reject or escape `label`.",
+      "confidence_reason": "Direct concatenation of request input into a /bin/sh -c command line."
+    },
+    {
+      "id": "F-003",
+      "file": "src/Restore/BackupService.cs",
+      "line": 10,
+      "category": "deserialization",
+      "severity": "HIGH",
+      "confidence": 0.93,
+      "title": "Insecure deserialization: Newtonsoft TypeNameHandling.All on untrusted body",
+      "description": "Restore() deserializes the raw request body with SerializerSettings { TypeNameHandling = TypeNameHandling.All } (line 10), applied in JsonConvert.DeserializeObject at line 17. TypeNameHandling.All honors an attacker-supplied `$type`, letting the request choose which .NET types are constructed. Body is POST /backups/restore (Program.cs:36).",
+      "exploit_scenario": "A `$type` gadget payload instantiates arbitrary types; with a suitable gadget chain present in the process this yields remote code execution. Even without a weaponized gadget, attacker-chosen types are instantiated from the wire.",
+      "recommendation": "Set TypeNameHandling = TypeNameHandling.None (the default) and deserialize into a known DTO, or use System.Text.Json. Never deserialize untrusted input with polymorphic type handling.",
+      "confidence_reason": "TypeNameHandling.All on attacker-controlled input is a well-known RCE-class primitive."
+    },
+    {
+      "id": "F-004",
+      "file": "src/Auth/PasswordHasher.cs",
+      "line": 9,
+      "category": "hardcoded-secret",
+      "severity": "MEDIUM",
+      "confidence": 0.9,
+      "title": "Hardcoded pepper embedded in source",
+      "description": "PasswordHasher hardcodes `private const Pepper = \"s3cr3t-pepper-v1\"` (line 9) and mixes it into every password hash (line 14). A secret compiled into source (and any repo/artifact) is known to anyone with read access and cannot be rotated per-deployment, so it provides no real protection.",
+      "exploit_scenario": "An attacker who reads the source (or decompiles the assembly) knows the pepper, so it adds zero entropy to offline cracking of any leaked hash.",
+      "recommendation": "Load the pepper from a secret store / environment at runtime; never commit it. Combine with a per-user random salt.",
+      "confidence_reason": "Literal secret assigned to a const and used in the hash."
+    },
+    {
+      "id": "F-005",
+      "file": "src/Auth/PasswordHasher.cs",
+      "line": 13,
+      "category": "weak-crypto",
+      "severity": "MEDIUM",
+      "confidence": 0.88,
+      "title": "Weak password hashing: unsalted fast MD5",
+      "description": "Hash() derives the stored password representation with MD5 (line 13-14). MD5 is fast and collision-broken, and here it is used with only a static pepper and no per-user salt or work factor, making stored hashes cheap to brute-force / rainbow-table.",
+      "exploit_scenario": "Given a leaked hash, an attacker recovers weak passwords with a wordlist in milliseconds (MD5(guess + known pepper)).",
+      "recommendation": "Use a memory-hard password KDF (Argon2id, scrypt, or PBKDF2 with a high iteration count) and a per-user random salt.",
+      "confidence_reason": "MD5.Create() used for password storage — unambiguous weak-hash pattern."
+    },
+    {
+      "id": "F-006",
+      "file": "src/Files/AttachmentService.cs",
+      "line": 12,
+      "category": "path-traversal",
+      "severity": "HIGH",
+      "confidence": 0.85,
+      "title": "Path traversal / absolute-path override in attachment read",
+      "description": "Read() builds a filesystem path with Path.Combine(_storageRoot, name) (line 12) and passes it straight to File.ReadAllBytes (line 13). `name` is the untrusted route segment from GET /attachments/{name} (Program.cs:28). Path.Combine performs no containment check: a '../' sequence escapes the storage root, and an absolute `name` causes Path.Combine to discard `_storageRoot` entirely.",
+      "exploit_scenario": "GET /attachments/..%2f..%2f..%2fetc%2fpasswd (or an absolute name) is intended to read files outside the storage root. NOTE for triage: reachability depends on the HTTP stack decoding %2f into a real '/' for a single-segment {name} route — default Kestrel does not, which neutralizes this specific trigger (see live-verification report).",
+      "recommendation": "Resolve the combined path (Path.GetFullPath) and verify it is still under _storageRoot before reading; reject names containing path separators or '..'.",
+      "confidence_reason": "Classic Path.Combine + ReadAllBytes with no containment check; the code-level flaw is real even though the default-Kestrel HTTP trigger is mitigated by route binding."
+    },
+    {
+      "id": "F-007",
+      "file": "src/Program.cs",
+      "line": 25,
+      "category": "missing-authentication",
+      "severity": "MEDIUM",
+      "confidence": 0.5,
+      "title": "No authentication or authorization on any endpoint",
+      "description": "All five endpoints (search, attachment download, report export, backup restore, register) are mapped with no authentication or authorization middleware. Every sink above is reachable by any unauthenticated caller.",
+      "exploit_scenario": "Any of the injection/traversal/deserialization sinks is reachable anonymously; there is no trust gate in front of them.",
+      "recommendation": "Add authentication + authorization appropriate to the deployment; treat all five endpoints as sensitive.",
+      "confidence_reason": "Observation, not a discrete sink; noted as an amplifier for the other findings (the THREAT_MODEL declares auth out of scope)."
+    }
+  ],
+  "summary": {"total": 7, "high": 4, "medium": 3, "low": 0, "low_confidence": 1}
+}

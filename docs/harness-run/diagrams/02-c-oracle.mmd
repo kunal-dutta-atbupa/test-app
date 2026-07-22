@@ -1,0 +1,7 @@
+flowchart LR
+    A["Crafted MRT1 file"] --> B["ASAN-built ./mrt"]
+    B --> C{"What breaks?"}
+    C -- "LABEL body &gt; 32B" --> D1["stack-buffer-overflow"]
+    C -- "NUMS count 16384<br/>(u16 overflow)" --> D2["heap-buffer-overflow (write)"]
+    C -- "BLOB declared &gt; body" --> D3["heap-buffer-overflow (read)"]
+    C -- "REF → DROP → EMIT" --> D4["heap-use-after-free"]

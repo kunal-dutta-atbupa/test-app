@@ -1,0 +1,26 @@
+flowchart TB
+    subgraph repo["This repo — 2 planted-bug targets"]
+        MRT["targets/mrt<br/>(C parser, 4 memory bugs)"]
+        IB["targets/issueblot<br/>(.NET web API, 5 web/crypto bugs)"]
+    end
+
+    MRT ==> ORACLE
+    IB ==> STATIC
+    IB -. "my addition" .-> LIVE
+
+    subgraph ORACLE["Mode A — execution oracle (C)"]
+        direction TB
+        O1["Build under AddressSanitizer<br/>in a clean container"] --> O2["Feed a crafted input"] --> O3{"Sanitizer<br/>crash?"}
+        O3 -- yes --> O4["Verified bug<br/>(a real crash, not a claim)"]
+        O3 -- no --> O5["Not counted"]
+    end
+
+    subgraph STATIC["Mode B — static scan (.NET)"]
+        direction TB
+        S1["/vuln-scan reads the source"] --> S2["Claims: file, line, CWE"] --> S3["VULN-FINDINGS.json"] --> S4["/triage verifies"]
+    end
+
+    subgraph LIVE["Live pentest (real HTTP)"]
+        direction TB
+        L1["Run the real server"] --> L2["Send real attack requests"] --> L3["See what actually fires"]
+    end

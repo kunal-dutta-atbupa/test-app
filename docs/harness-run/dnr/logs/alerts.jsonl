@@ -1,0 +1,2 @@
+{"id": "A-1001", "ts": "[21/Jul/2026:11:05:00 +0000]", "rule": "waf.path_traversal", "src": "203.0.113.77", "path": "/attachments/", "severity": "high", "note": "encoded ../ sequences"}
+{"id": "A-1002", "ts": "[21/Jul/2026:14:12:00 +0000]", "rule": "http.404_rate", "src": "198.51.100.41", "path": "/favicon.ico", "severity": "low", "note": "missing favicon (browser noise)"}

@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The security harness — from a firehose of maybe-bugs to a short list of proven ones</title>
+<style>
+  :root {
+    --bg:#eef1f6; --panel:#ffffff; --panel-2:#f4f6fa; --border:#dbe1ea;
+    --ink:#14203a; --muted:#54637f; --faint:#8492a8;
+    --gold:#a9701a; --gold-soft:#a9701a14;
+    --blue:#2461c6; --offense:#bd3a2c; --defense:#0f7d6e;
+    --offense-soft:#bd3a2c14; --defense-soft:#0f7d6e14;
+    --serif:ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono:ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    --shadow:0 1px 2px rgba(20,32,58,.06), 0 12px 34px rgba(20,32,58,.06);
+    --maxw:1060px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0b1220; --panel:#121b2e; --panel-2:#182339; --border:#263352;
+      --ink:#e9eef7; --muted:#98a6c2; --faint:#6c7c99;
+      --gold:#e2a641; --gold-soft:#e2a6411c;
+      --blue:#5aa1f4; --offense:#e6716a; --defense:#3bbda8;
+      --offense-soft:#e6716a1a; --defense-soft:#3bbda81a;
+      --shadow:0 1px 2px rgba(0,0,0,.5), 0 16px 40px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f6; --panel:#ffffff; --panel-2:#f4f6fa; --border:#dbe1ea;
+    --ink:#14203a; --muted:#54637f; --faint:#8492a8;
+    --gold:#a9701a; --gold-soft:#a9701a14; --blue:#2461c6; --offense:#bd3a2c; --defense:#0f7d6e;
+    --offense-soft:#bd3a2c14; --defense-soft:#0f7d6e14;
+    --shadow:0 1px 2px rgba(20,32,58,.06), 0 12px 34px rgba(20,32,58,.06);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b1220; --panel:#121b2e; --panel-2:#182339; --border:#263352;
+    --ink:#e9eef7; --muted:#98a6c2; --faint:#6c7c99;
+    --gold:#e2a641; --gold-soft:#e2a6411c; --blue:#5aa1f4; --offense:#e6716a; --defense:#3bbda8;
+    --offense-soft:#e6716a1a; --defense-soft:#3bbda81a;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 16px 40px rgba(0,0,0,.4);
+  }
+
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px;}
+  section{padding:56px 0;border-top:1px solid var(--border);}
+  section:first-of-type{border-top:none;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 16px;}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(34px,5.6vw,60px);line-height:1.04;letter-spacing:-.01em;margin:0 0 20px;text-wrap:balance;}
+  h2{font-family:var(--serif);font-weight:600;font-size:clamp(24px,3.4vw,34px);line-height:1.1;letter-spacing:-.01em;margin:0 0 14px;text-wrap:balance;}
+  h3{font-size:17px;margin:0 0 6px;font-weight:650;letter-spacing:-.01em;}
+  p{margin:0 0 16px;}
+  .lede{font-size:clamp(17px,2.1vw,21px);color:var(--muted);max-width:60ch;}
+  .kicker{font-size:15px;color:var(--muted);max-width:64ch;}
+
+  /* hero */
+  .hero{padding-top:72px;padding-bottom:20px;}
+  .hero .rule{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-bottom:26px;}
+  .hero .rule .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);}
+  .lead-em{color:var(--ink);font-style:italic;}
+
+  /* proof tiles */
+  .proof{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-top:36px;box-shadow:var(--shadow);}
+  .proof .cell{background:var(--panel);padding:18px 18px 16px;}
+  .proof .n{font-family:var(--serif);font-size:30px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
+  .proof .n small{font-size:15px;color:var(--muted);font-weight:600;font-family:var(--sans);}
+  .proof .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:9px;}
+  .proof .cell.gold .n{color:var(--gold);} .proof .cell.off .n{color:var(--offense);} .proof .cell.def .n{color:var(--defense);}
+
+  /* pull quote */
+  .pull{font-family:var(--serif);font-size:clamp(22px,3.2vw,30px);line-height:1.28;font-weight:500;color:var(--ink);border-left:3px solid var(--gold);padding:4px 0 4px 22px;margin:26px 0;max-width:24ch;}
+  .two{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:start;}
+  @media (max-width:760px){.two{grid-template-columns:1fr;gap:22px;}}
+
+  /* lifecycle loop */
+  .loop{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;}
+  .stage{flex:1 1 128px;min-width:128px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 14px 13px;position:relative;box-shadow:var(--shadow);}
+  .stage .idx{font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.08em;}
+  .stage .nm{font-weight:680;font-size:15px;margin:3px 0 4px;}
+  .stage .cap{font-size:12.5px;color:var(--muted);line-height:1.4;}
+  .stage.off{border-top:3px solid var(--offense);} .stage.def{border-top:3px solid var(--defense);}
+  .loop-legend{display:flex;gap:18px;margin-top:16px;font-family:var(--mono);font-size:11.5px;color:var(--muted);flex-wrap:wrap;}
+  .loop-legend .k{display:inline-flex;align-items:center;gap:7px;}
+  .loop-legend .sw{width:20px;height:3px;border-radius:2px;}
+
+  /* capability cards */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:8px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow);}
+  .card .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;}
+  .card .out{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:13.5px;color:var(--muted);}
+  .card .out b{color:var(--ink);font-weight:640;}
+  .card p{font-size:14px;color:var(--muted);margin:0;}
+
+  /* differentiators */
+  .diffs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:26px 34px;margin-top:8px;}
+  .diff{border-top:2px solid var(--gold);padding-top:14px;}
+  .diff h3{font-family:var(--serif);font-size:19px;font-weight:600;}
+  .diff p{font-size:14px;color:var(--muted);margin:0;}
+
+  /* fit map */
+  .fit{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:8px;}
+  .lane{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px;}
+  .lane .h{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .lane .h.off{color:var(--offense);} .lane .h.def{color:var(--defense);}
+  .lane ul{margin:0;padding-left:18px;} .lane li{font-size:13.5px;margin:5px 0;color:var(--ink);}
+  .lane li span{color:var(--muted);}
+
+  /* bar checklist */
+  .bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px 28px;margin-top:8px;list-style:none;padding:0;}
+  .bar li{display:flex;gap:12px;align-items:flex-start;padding:6px 0;font-size:14.5px;}
+  .bar .chk{flex:0 0 auto;width:22px;height:22px;border-radius:6px;background:var(--gold-soft);color:var(--gold);display:grid;place-items:center;font-weight:800;font-size:13px;margin-top:1px;}
+  .bar b{font-weight:660;}
+  .bar span{color:var(--muted);}
+
+  /* close */
+  .close{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:clamp(26px,4vw,48px);box-shadow:var(--shadow);text-align:center;}
+  .close h2{margin-bottom:12px;}
+  .close p{max-width:56ch;margin:0 auto 8px;color:var(--muted);font-size:16px;}
+  .close .cmd{font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:inline-block;margin-top:18px;}
+  .close .cmd .p{color:var(--gold);}
+  footer{padding:30px 0 60px;font-family:var(--mono);font-size:12px;color:var(--faint);text-align:center;}
+  .em{color:var(--ink);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="rule"><span class="dot"></span> A REFERENCE FOR AI-DRIVEN SECURITY HARNESSES</div>
+    <p class="eyebrow">The pitch</p>
+    <h1>Security teams don't have a bug-finding problem. They have a <em>proof</em> problem.</h1>
+    <p class="lede">Scanners are cheap; <span class="lead-em">certainty</span> is expensive. Every tool hands you a longer list of <em>maybe</em>. A security harness is the machine that turns that firehose into a short list of <em>proven, ranked, owned</em> issues — and then keeps going, past find-and-fix, into detect-and-respond.</p>
+
+    <div class="proof">
+      <div class="cell gold"><div class="n">7</div><div class="l">lifecycle stages, one system</div></div>
+      <div class="cell"><div class="n">4<small>/4</small></div><div class="l">crashes proven, not claimed</div></div>
+      <div class="cell"><div class="n">6<small>/6</small></div><div class="l">findings, zero missed</div></div>
+      <div class="cell def"><div class="n">2<small>/2</small></div><div class="l">compromises caught in logs</div></div>
+      <div class="cell"><div class="n">0</div><div class="l">false alarms on benign traffic</div></div>
+    </div>
+    <p class="kicker" style="margin-top:14px;">Every number above is from one real run of this harness against two purpose-built targets — the same run this pitch is drawn from.</p>
+  </section>
+
+  <!-- PROBLEM -->
+  <section>
+    <p class="eyebrow">Why the old shape fails</p>
+    <div class="two">
+      <div>
+        <h2>A list of findings is not a decision.</h2>
+        <p class="kicker">A static scanner says <em>"SQL injection at line 21."</em> Is it reachable? Exploitable in <em>your</em> deployment? Already mitigated by the framework? The scanner can't say — so a human re-derives every finding by hand. That human is the bottleneck, and they burn out on false positives long before the real bug.</p>
+        <p class="kicker">Meanwhile the tools stop at the finding. They don't prove it, don't rank it by real exploitability, don't propose the fix, and go completely silent the moment an attacker actually shows up in your logs.</p>
+      </div>
+      <div>
+        <blockquote class="pull">The bottleneck was never finding bugs. It's trusting the answer.</blockquote>
+        <p class="kicker">The job that matters is the loop <em>around</em> the finding: model → discover → <span class="em">prove</span> → triage → fix → hunt → respond. Automate that loop with verifiable output, and the human moves from grinding a queue to approving a short, trustworthy list.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE LOOP -->
+  <section>
+    <p class="eyebrow">The approach — one closed loop</p>
+    <h2>The whole security lifecycle, as a single pipeline.</h2>
+    <p class="kicker" style="margin-bottom:22px;">Not seven tools bolted together — seven stages that pass a shared, structured artifact down the line. A threat model aims the scan; the scan feeds triage; triage feeds the patch; the same verification bar governs a live incident. Each hand-off is machine-readable, so the pipeline runs end to end and a human reviews the output, not the plumbing.</p>
+    <div class="loop">
+      <div class="stage off"><div class="idx">01 · MODEL</div><div class="nm">Threat model</div><div class="cap">Map assets, entry points & threats — know what to protect before you look.</div></div>
+      <div class="stage off"><div class="idx">02 · DISCOVER</div><div class="nm">Find</div><div class="cap">Static review + autonomous search surface candidate vulnerabilities.</div></div>
+      <div class="stage off"><div class="idx">03 · PROVE</div><div class="nm">Verify</div><div class="cap">An execution oracle crashes the target for real — a bug, not a guess.</div></div>
+      <div class="stage off"><div class="idx">04 · TRIAGE</div><div class="nm">Triage</div><div class="cap">Adversarial verifiers kill false positives and re-rank by exploitability.</div></div>
+      <div class="stage off"><div class="idx">05 · FIX</div><div class="nm">Patch</div><div class="cap">Generate candidate fixes for the survivors — findings become changes.</div></div>
+      <div class="stage def"><div class="idx">06 · HUNT</div><div class="nm">Detect</div><div class="cap">Hunt the logs cold for a campaign no alert told you about.</div></div>
+      <div class="stage def"><div class="idx">07 · RESPOND</div><div class="nm">Respond</div><div class="cap">Verdict, blast radius, root cause & a proposed containment plan.</div></div>
+    </div>
+    <div class="loop-legend">
+      <span class="k"><span class="sw" style="background:var(--offense)"></span> Find &amp; fix (offense-facing)</span>
+      <span class="k"><span class="sw" style="background:var(--defense)"></span> Detect &amp; respond (defense-facing)</span>
+    </div>
+  </section>
+
+  <!-- CAPABILITIES -->
+  <section>
+    <p class="eyebrow">The capabilities</p>
+    <h2>What it actually does for you.</h2>
+    <div class="cards">
+      <div class="card"><div class="tag">Threat modeling</div><h3>Know what to worry about</h3><p>Builds a structured threat model from an owner interview or straight from the code + history — assets, trust boundaries, scored threats, class-level mitigations.</p><div class="out"><b>Output:</b> a map that aims every downstream scan and tells triage which findings matter.</div></div>
+      <div class="card"><div class="tag">Discovery</div><h3>Find the bugs — two ways</h3><p>Static source review across the attack surface, <em>and</em> an autonomous loop that crafts inputs and runs the target. Both, because different bugs need different lenses.</p><div class="out"><b>Output:</b> candidate findings with file, line, class, and an attack story.</div></div>
+      <div class="card"><div class="tag">Verification</div><h3>Prove it, don't claim it</h3><p>For memory-safety bugs, an execution oracle builds the target under a sanitizer and only counts a bug when a crafted input <em>actually crashes it</em>, reproduced in a clean sandbox.</p><div class="out"><b>Output:</b> reproductions, not assertions — the strongest signal there is.</div></div>
+      <div class="card"><div class="tag">Triage</div><h3>Kill the noise</h3><p>Independent adversarial verifiers re-derive each finding from source, drop false positives, collapse duplicates, and re-rank by real exploitability rather than the scanner's claimed severity.</p><div class="out"><b>Output:</b> a short, ranked, owned worklist instead of a raw dump.</div></div>
+      <div class="card"><div class="tag">Remediation</div><h3>From finding to fix</h3><p>Generates candidate patches for the verified survivors, scoped to close the vulnerability class — not just the one reported line.</p><div class="out"><b>Output:</b> reviewable diffs a human approves, not a ticket that sits.</div></div>
+      <div class="card"><div class="tag">Detect &amp; respond</div><h3>When the attacker is already in</h3><p>Hunts application logs for compromise with no alert in hand, then works a lead end-to-end: did it succeed, how far, root cause, and a proposed response plan.</p><div class="out"><b>Output:</b> confirmed incidents + a containment/remediation/recovery plan.</div></div>
+    </div>
+  </section>
+
+  <!-- DIFFERENTIATORS -->
+  <section>
+    <p class="eyebrow">Why you can trust the output</p>
+    <h2>The parts that make it more than a smarter scanner.</h2>
+    <div class="diffs">
+      <div class="diff"><h3>Proof, not probability</h3><p>The execution oracle is the difference between "there might be a bug here" and "here is the input that crashes it." A verified reproduction can't be argued with — and a clean run means the tool works, not that your code is clean.</p></div>
+      <div class="diff"><h3>Reachability honesty</h3><p>A real sink isn't always a real exploit. In one run, two genuine code flaws were flagged by static analysis — and the live pass proved the platform neutralizes both over HTTP. The harness tells you the difference; a scanner alone can't.</p></div>
+      <div class="diff"><h3>Adversarial by construction</h3><p>Every finding is re-checked by verifiers whose job is to prove it <em>wrong</em>, independently, from the code. That's how a firehose becomes a ranked list you can hand to an engineer without apology.</p></div>
+      <div class="diff"><h3>Safe autonomy</h3><p>It runs untrusted target code in a sandbox, hunts on read-only queries, and <em>proposes</em> response actions — it never blocks, rotates, or changes config on its own. Speed of a machine, blast radius of a reviewer.</p></div>
+      <div class="diff"><h3>Auditable method</h3><p>Every hunt keeps a written hypothesis ledger; every number traces to a query you can re-run. The reasoning is the deliverable as much as the verdict — reviewable, not a black box.</p></div>
+      <div class="diff"><h3>Uncontaminated results</h3><p>Trust a capability only on code the model has never seen. The discipline — original targets, answer keys kept out of the scanned tree — is what separates real discovery from recall.</p></div>
+    </div>
+  </section>
+
+  <!-- WHERE IT FITS -->
+  <section>
+    <p class="eyebrow">Where it fits in a full program</p>
+    <h2>One engine across teams that don't usually share tools.</h2>
+    <p class="kicker" style="margin-bottom:22px;">The same verified-finding backbone serves shift-left engineering, the AppSec backlog, red-team augmentation, and the SOC — so offense and defense finally read from the same source of truth.</p>
+    <div class="fit">
+      <div class="lane"><div class="h off">Shift-left / CI</div><ul><li>Threat model on new services <span>— design-time risk</span></li><li>Verified scan as a merge gate <span>— block on proven bugs only</span></li></ul></div>
+      <div class="lane"><div class="h off">AppSec backlog</div><ul><li>Triaged, ranked, owned findings <span>— no raw dumps</span></li><li>Candidate patches attached <span>— fix, not just file</span></li></ul></div>
+      <div class="lane"><div class="h off">Red team</div><ul><li>Autonomous discovery at scale <span>— parallel focus areas</span></li><li>Execution-verified PoCs <span>— proof, not theater</span></li></ul></div>
+      <div class="lane"><div class="h def">SOC / IR</div><ul><li>Proactive log hunts <span>— catch the quiet campaign</span></li><li>Worked incidents + response plans <span>— faster MTTR</span></li></ul></div>
+      <div class="lane"><div class="h def">Continuous assurance</div><ul><li>Re-run on every change <span>— always-on coverage</span></li><li>Detections derived from real incidents <span>— the queue improves itself</span></li></ul></div>
+    </div>
+  </section>
+
+  <!-- THE BAR -->
+  <section>
+    <p class="eyebrow">The bar for any harness</p>
+    <h2>What any system like this should be held to.</h2>
+    <p class="kicker" style="margin-bottom:20px;">If you're evaluating this approach — from anyone — these are the properties that separate a real security harness from a wrapper around a model. Ask for all seven.</p>
+    <ul class="bar">
+      <li><span class="chk">✓</span><div><b>Verifiable output.</b> <span>A finding comes with a reproduction or a traceable line of evidence — never just an assertion.</span></div></li>
+      <li><span class="chk">✓</span><div><b>Low, honest noise.</b> <span>False positives are actively hunted and dropped; severity reflects real exploitability, not category names.</span></div></li>
+      <li><span class="chk">✓</span><div><b>Full-lifecycle coverage.</b> <span>Model → find → prove → triage → fix → hunt → respond, not a single point tool.</span></div></li>
+      <li><span class="chk">✓</span><div><b>Auditable reasoning.</b> <span>A written trail — ledger, queries, votes — so a human can review the <em>how</em>, not just the <em>what</em>.</span></div></li>
+      <li><span class="chk">✓</span><div><b>Safe by default.</b> <span>Untrusted code sandboxed; response actions proposed, never executed; read-only where it should be.</span></div></li>
+      <li><span class="chk">✓</span><div><b>Adaptable to your stack.</b> <span>Retargetable to new languages, vuln classes, and domains — your code, your threat model.</span></div></li>
+      <li><span class="chk">✓</span><div><b>Human-in-the-loop.</b> <span>The output is a short list a person approves — the machine does the grind, not the judgment call.</span></div></li>
+    </ul>
+  </section>
+
+  <!-- CLOSE -->
+  <section>
+    <div class="close">
+      <p class="eyebrow" style="color:var(--gold)">The vision</p>
+      <h2>An always-on security engineer that never stops at the finding.</h2>
+      <p>It models the threat, finds the bug, <span class="em">proves</span> it, prunes the noise, writes the fix, watches the logs, and works the incident — and hands a person a short, trustworthy, ranked list at every step. The firehose becomes a decision.</p>
+      <p>The machinery is only worth trusting once you've watched it work on a known answer. Then you point it where it counts:</p>
+      <div class="cmd"><span class="p">&gt;</span> point the harness at code the model has never seen — your own</div>
+    </div>
+  </section>
+
+  <footer>Drawn from a real end-to-end run · threat-model · vuln-scan · execution oracle · triage · live pentest · dnr-hunt · dnr-respond</footer>
+</div>
+</body>
+</html>

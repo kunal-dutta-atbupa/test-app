@@ -1,0 +1,11 @@
+flowchart TB
+    S["Static scan: 5 sinks flagged (all correct)"] --> LIVE{"Live over HTTP?"}
+    LIVE -- "3 of 5" --> OK["Exploited:<br/>SQLi · command-injection · weak-hash"]
+    LIVE -- "2 of 5" --> GAP["Blocked by the framework"]
+    GAP --> G1["Path traversal:<br/>Kestrel keeps %2f literal for a<br/>single-segment route, and normalizes<br/>real '..' before routing → no real '/'"]
+    GAP --> G2["Deserialization:<br/>reader.ReadToEnd() is a sync body read,<br/>blocked by AllowSynchronousIO=false →<br/>throws BEFORE the deserializer runs"]
+
+    classDef ok fill:#d6f0e2,stroke:#1c7a52,color:#14321f;
+    classDef no fill:#f6e7c6,stroke:#96660f,color:#4a3410;
+    class OK ok;
+    class G1,G2 no;

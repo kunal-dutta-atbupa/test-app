@@ -1,0 +1,105 @@
+{
+  "triage_completed": true,
+  "triage_context": {
+    "mode": "auto",
+    "environment": "Internet-facing web service (HTTP is untrusted). Live-run reachability evidence folded into verify_verdict where it changes the picture.",
+    "threat_model": ["Unauthenticated remote code execution", "Tenant/data leakage", "Credential compromise"],
+    "scoring": "Derived HIGH/MEDIUM/LOW from preconditions",
+    "noise_tolerance": "precision",
+    "votes_per_finding": 1,
+    "repo": "targets/issueblot"
+  },
+  "summary": {
+    "input_count": 7,
+    "duplicates": 0,
+    "false_positives": 1,
+    "true_positives": 6,
+    "needs_manual_test": 2,
+    "by_severity": {"HIGH": 2, "MEDIUM": 4, "LOW": 0}
+  },
+  "findings": [
+    {
+      "id": "f001", "source": "VULN-FINDINGS.json#F-001", "title": "SQL injection in issue search",
+      "file": "src/Data/IssueRepository.cs", "line": 21, "category": "sql-injection", "claimed_severity": "HIGH",
+      "verdict": "true_positive", "verify_verdict": "exploitable", "confidence": 9.5,
+      "severity": "HIGH", "severity_label": "HIGH", "severity_alignment": 3,
+      "preconditions": ["send a GET /issues/search?q= request (no auth)"],
+      "access_level": "unauthenticated_remote", "threat_match": "Tenant/data leakage",
+      "rationale": "`q` is concatenated into CommandText (IssueRepository.cs:20-21), reached unauth from Program.cs:25. No parameterization. Confirmed exploitable live: `' OR 1=1--` returned all rows; UNION extracted sqlite_version(). 0 preconditions, unauth → HIGH.",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/Program.cs:25"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: Data/; no CODEOWNERS; single committer", "missing_fields": []
+    },
+    {
+      "id": "f002", "source": "VULN-FINDINGS.json#F-002", "title": "OS command injection in report export",
+      "file": "src/Export/ReportExporter.cs", "line": 13, "category": "command-injection", "claimed_severity": "HIGH",
+      "verdict": "true_positive", "verify_verdict": "exploitable", "confidence": 9.6,
+      "severity": "HIGH", "severity_label": "HIGH", "severity_alignment": 3,
+      "preconditions": ["send a POST /reports/export with a crafted label (no auth)"],
+      "access_level": "unauthenticated_remote", "threat_match": "Unauthenticated remote code execution",
+      "rationale": "`label`/`format` concatenated into a /bin/sh -c string (ReportExporter.cs:13), reached unauth from Program.cs:32. Confirmed exploitable live: injected `id` ran as the service account and its output returned in the HTTP response; a file was written to /tmp. 0 preconditions, unauth → HIGH.",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/Program.cs:32"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: Export/; no CODEOWNERS; single committer", "missing_fields": []
+    },
+    {
+      "id": "f003", "source": "VULN-FINDINGS.json#F-003", "title": "Insecure deserialization (TypeNameHandling.All)",
+      "file": "src/Restore/BackupService.cs", "line": 10, "category": "deserialization", "claimed_severity": "HIGH",
+      "verdict": "true_positive", "verify_verdict": "needs_manual_test", "confidence": 8.0,
+      "severity": "MEDIUM", "severity_label": "MEDIUM", "severity_alignment": -1,
+      "preconditions": ["the request body is read asynchronously (AllowSynchronousIO=true) OR Restore() is invoked from a non-HTTP path", "a usable gadget type is loadable in the process"],
+      "access_level": "unauthenticated_remote", "threat_match": "Unauthenticated remote code execution",
+      "rationale": "SerializerSettings use TypeNameHandling.All (BackupService.cs:10), honoring attacker $type — sink CONFIRMED by direct invocation of the compiled method (instantiated System.Text.StringBuilder from the wire, reached for EvilAssembly). BUT over HTTP the endpoint throws first: reader.ReadToEnd() is a synchronous body read, blocked by ASP.NET's default AllowSynchronousIO=false (verified live: every body → 500 before the deserializer). Real sink, gated HTTP path → severity downgraded from HIGH to MEDIUM, verify_verdict needs_manual_test.",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/Program.cs:36", "src/Restore/BackupService.cs:16"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: Restore/; no CODEOWNERS; single committer", "missing_fields": []
+    },
+    {
+      "id": "f004", "source": "VULN-FINDINGS.json#F-006", "title": "Path traversal / absolute-path override in attachment read",
+      "file": "src/Files/AttachmentService.cs", "line": 12, "category": "path-traversal", "claimed_severity": "HIGH",
+      "verdict": "true_positive", "verify_verdict": "needs_manual_test", "confidence": 7.5,
+      "severity": "MEDIUM", "severity_label": "MEDIUM", "severity_alignment": -1,
+      "preconditions": ["a reverse proxy decodes %2f before ASP.NET, OR Read() is called with a name from a non-HTTP source"],
+      "access_level": "unauthenticated_remote", "threat_match": "Tenant/data leakage",
+      "rationale": "Path.Combine(_storageRoot, name) + File.ReadAllBytes with no containment (AttachmentService.cs:12-13), reached unauth from Program.cs:28. Sink CONFIRMED reachable with raw input (live: handler opened '/var/issueblot/attachments/..%2f...'), but default Kestrel keeps %2f literal for a single-segment {name} route and normalizes real '..' before routing, so the documented HTTP trigger never lands a real '/'. Real code flaw, HTTP trigger neutralized → HIGH downgraded to MEDIUM, needs_manual_test.",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/Program.cs:28"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: Files/; no CODEOWNERS; single committer", "missing_fields": []
+    },
+    {
+      "id": "f005", "source": "VULN-FINDINGS.json#F-005", "title": "Weak password hashing (unsalted MD5)",
+      "file": "src/Auth/PasswordHasher.cs", "line": 13, "category": "weak-crypto", "claimed_severity": "MEDIUM",
+      "verdict": "true_positive", "verify_verdict": "exploitable", "confidence": 8.5,
+      "severity": "MEDIUM", "severity_label": "MEDIUM", "severity_alignment": 2,
+      "preconditions": ["attacker obtains a stored password hash (e.g. via the SQLi or a DB leak)"],
+      "access_level": "unauthenticated_remote", "threat_match": "Credential compromise",
+      "rationale": "Hash() uses MD5 with only a static pepper and no per-user salt (PasswordHasher.cs:13-14). Confirmed live: the server hash for 'hunter2' matched MD5('hunter2'+pepper) recomputed offline. Fast, unsalted → cheap brute-force once a hash leaks. Kept DISTINCT from f006 (different root cause).",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/Program.cs:40"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: Auth/; no CODEOWNERS; single committer", "missing_fields": []
+    },
+    {
+      "id": "f006", "source": "VULN-FINDINGS.json#F-004", "title": "Hardcoded pepper in source",
+      "file": "src/Auth/PasswordHasher.cs", "line": 9, "category": "hardcoded-secret", "claimed_severity": "MEDIUM",
+      "verdict": "true_positive", "verify_verdict": "exploitable", "confidence": 8.5,
+      "severity": "MEDIUM", "severity_label": "MEDIUM", "severity_alignment": 2,
+      "preconditions": ["attacker reads the source or decompiles the assembly (public repo, or via another finding)"],
+      "access_level": "unauthenticated_remote", "threat_match": "Credential compromise",
+      "rationale": "`const Pepper = \"s3cr3t-pepper-v1\"` is compiled in (PasswordHasher.cs:9) and mixed into every hash (line 14). A secret in source is known to anyone with read access and cannot be rotated, so it adds no entropy — confirmed live by reproducing the server hash with the source value. DISTINCT from f005: fixing MD5 does not remove the hardcoded secret.",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/Program.cs:40"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: Auth/; no CODEOWNERS; single committer", "missing_fields": []
+    },
+    {
+      "id": "f007", "source": "VULN-FINDINGS.json#F-007", "title": "No authentication on any endpoint",
+      "file": "src/Program.cs", "line": 25, "category": "missing-authentication", "claimed_severity": "MEDIUM",
+      "verdict": "false_positive", "verify_verdict": null, "confidence": 0.0,
+      "severity": null, "severity_label": null, "severity_alignment": null,
+      "preconditions": [], "access_level": null, "threat_match": null,
+      "rationale": "Real observation, but not a discrete actionable defect on its own: it is a missing-hardening/best-practice gap (exclusion rule 13) with no standalone exploit, and the target's THREAT_MODEL explicitly scopes authentication out. It amplifies f001-f006 rather than being independently exploitable. Dropped under precision policy; recorded as a design gap in the threat model (T6) instead.",
+      "vote_breakdown": {"true_positive": 0, "false_positive": 1, "cannot_verify": 0},
+      "refute_reasons": ["not_actionable"], "exclusion_rule": 13, "first_links": [],
+      "duplicate_of": null, "absorbed": [], "owner_hint": null, "missing_fields": []
+    }
+  ]
+}

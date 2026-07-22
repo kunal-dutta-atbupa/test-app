@@ -1,0 +1,74 @@
+{
+  "triage_completed": true,
+  "triage_context": {
+    "mode": "auto",
+    "environment": "CLI / batch tool (operator inputs trusted, file inputs not). Note: if this parser is embedded behind a service that accepts uploaded MRT1 files, actor rises to unauthenticated_remote.",
+    "threat_model": ["Unauthenticated remote code execution"],
+    "scoring": "Derived HIGH/MEDIUM/LOW from preconditions",
+    "noise_tolerance": "precision",
+    "votes_per_finding": 1,
+    "repo": "targets/mrt"
+  },
+  "summary": {
+    "input_count": 4,
+    "duplicates": 0,
+    "false_positives": 0,
+    "true_positives": 4,
+    "needs_manual_test": 0,
+    "by_severity": {"HIGH": 2, "MEDIUM": 2, "LOW": 0}
+  },
+  "findings": [
+    {
+      "id": "f001", "source": "mrt.VULN-FINDINGS.json#F-001", "title": "Stack buffer overflow in handle_label",
+      "file": "src/mrt.c", "line": 38, "category": "stack-buffer-overflow", "claimed_severity": "HIGH",
+      "verdict": "true_positive", "verify_verdict": "exploitable", "confidence": 9.5,
+      "severity": "HIGH", "severity_label": "HIGH", "severity_alignment": 3,
+      "preconditions": ["attacker supplies a crafted MRT1 file with a LABEL body > 31 bytes"],
+      "access_level": "local", "threat_match": "Unauthenticated remote code execution (if network-embedded)",
+      "rationale": "handle_label copies len attacker bytes into char label[32] with no bound (mrt.c:37-39); reached from main()'s REC_LABEL dispatch (mrt.c:126). Confirmed by execution: reproduces AddressSanitizer stack-buffer-overflow. A stack write primitive is RCE-class.",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/mrt.c:126"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: targets/mrt/; no CODEOWNERS; single committer",
+      "missing_fields": []
+    },
+    {
+      "id": "f002", "source": "mrt.VULN-FINDINGS.json#F-002", "title": "Heap overflow via u16 truncation in handle_nums",
+      "file": "src/mrt.c", "line": 48, "category": "heap-buffer-overflow", "claimed_severity": "HIGH",
+      "verdict": "true_positive", "verify_verdict": "exploitable", "confidence": 9.2,
+      "severity": "HIGH", "severity_label": "HIGH", "severity_alignment": 3,
+      "preconditions": ["attacker supplies a NUMS record with count >= 16384"],
+      "access_level": "local", "threat_match": "Unauthenticated remote code execution (if network-embedded)",
+      "rationale": "uint16_t bytes = count*4 truncates for count>=16384 (mrt.c:48), so malloc under-allocates while the loop writes count ints (mrt.c:52-54); reached from REC_NUMS dispatch (mrt.c:127). Confirmed by execution: AddressSanitizer heap-buffer-overflow. Heap write primitive.",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/mrt.c:127"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: targets/mrt/; no CODEOWNERS; single committer",
+      "missing_fields": []
+    },
+    {
+      "id": "f003", "source": "mrt.VULN-FINDINGS.json#F-003", "title": "OOB heap read in handle_blob checksum",
+      "file": "src/mrt.c", "line": 73, "category": "heap-buffer-overflow", "claimed_severity": "MEDIUM",
+      "verdict": "true_positive", "verify_verdict": "exploitable", "confidence": 9.0,
+      "severity": "MEDIUM", "severity_label": "MEDIUM", "severity_alignment": 2,
+      "preconditions": ["attacker supplies a BLOB record whose declared size exceeds its body"],
+      "access_level": "local", "threat_match": "none",
+      "rationale": "checksum(copy+2, declared) walks an attacker-declared u16 span independent of the malloc(len) copy size (mrt.c:69-73); reached from REC_BLOB dispatch (mrt.c:128). Confirmed by execution: AddressSanitizer heap-buffer-overflow (read). Read primitive -> info leak / crash, hence MEDIUM not HIGH.",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/mrt.c:128"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: targets/mrt/; no CODEOWNERS; single committer",
+      "missing_fields": []
+    },
+    {
+      "id": "f004", "source": "mrt.VULN-FINDINGS.json#F-004", "title": "Use-after-free across REF/DROP/EMIT",
+      "file": "src/mrt.c", "line": 88, "category": "use-after-free", "claimed_severity": "MEDIUM",
+      "verdict": "true_positive", "verify_verdict": "exploitable", "confidence": 9.0,
+      "severity": "MEDIUM", "severity_label": "MEDIUM", "severity_alignment": 2,
+      "preconditions": ["attacker supplies records in the order REF -> DROP -> EMIT"],
+      "access_level": "local", "threat_match": "none",
+      "rationale": "handle_drop frees ps->last without clearing it (mrt.c:88); handle_emit then dereferences the freed pointer because last_len is still non-zero (mrt.c:92-93); reached from the REC_DROP/REC_EMIT dispatch (mrt.c:130-131). Confirmed by execution: AddressSanitizer heap-use-after-free. Two-record precondition -> MEDIUM.",
+      "vote_breakdown": {"true_positive": 1, "false_positive": 0, "cannot_verify": 0},
+      "refute_reasons": [], "exclusion_rule": null, "first_links": ["src/mrt.c:130"],
+      "duplicate_of": null, "absorbed": [], "owner_hint": "component: targets/mrt/; no CODEOWNERS; single committer",
+      "missing_fields": []
+    }
+  ]
+}

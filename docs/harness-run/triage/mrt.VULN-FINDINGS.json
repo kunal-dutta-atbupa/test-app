@@ -1,0 +1,66 @@
+{
+  "target": "targets/mrt",
+  "scanned_at": "2026-07-22T10:35:00Z",
+  "scanner": "/vuln-scan skill (single-pass; 1 source file) — the static C case, triage input",
+  "focus_areas": [
+    "LABEL record (handle_label) — fixed-size stack buffer from a record body",
+    "NUMS record (handle_nums) — array sized from an in-band count field",
+    "BLOB record (handle_blob) — checksum walk driven by a declared-size field",
+    "REF/DROP/EMIT lifecycle — referenced-payload lifetime across records"
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "file": "src/mrt.c",
+      "line": 38,
+      "category": "stack-buffer-overflow",
+      "severity": "HIGH",
+      "confidence": 0.95,
+      "title": "Stack buffer overflow copying LABEL body into fixed 32-byte buffer",
+      "description": "handle_label copies `len` body bytes into `char label[32]` with an unchecked loop `for (i=0;i<len;i++) label[i]=p[i];` then writes `label[len]=0` (lines 37-39). `len` is the attacker-controlled record length (u16). Any LABEL body longer than 31 bytes overflows the stack buffer.",
+      "exploit_scenario": "A LABEL record with a 200-byte body writes past `label[32]`, corrupting the stack — a control-flow hijack primitive.",
+      "recommendation": "Bound the copy to sizeof(label)-1 and reject/truncate longer bodies.",
+      "confidence_reason": "Unbounded copy of an attacker-length body into a fixed stack array."
+    },
+    {
+      "id": "F-002",
+      "file": "src/mrt.c",
+      "line": 48,
+      "category": "heap-buffer-overflow",
+      "severity": "HIGH",
+      "confidence": 0.92,
+      "title": "Heap buffer overflow via u16 truncation of NUMS allocation size",
+      "description": "handle_nums computes `uint16_t bytes = count * 4` (line 48). For count >= 16384 the multiply overflows the u16, so `malloc(bytes?bytes:4)` under-allocates while the loop writes `arr[i]` for i<count (lines 52-54). count=16384 gives bytes=0 -> malloc(4) -> 16384 int writes.",
+      "exploit_scenario": "A NUMS record with count=0x4000 allocates 4 bytes and writes 64KB past it — a heap-corruption write primitive.",
+      "recommendation": "Compute the size in size_t with an overflow check before allocating; size the write loop to the allocation.",
+      "confidence_reason": "Integer truncation feeding an allocation smaller than the write loop."
+    },
+    {
+      "id": "F-003",
+      "file": "src/mrt.c",
+      "line": 73,
+      "category": "heap-buffer-overflow",
+      "severity": "MEDIUM",
+      "confidence": 0.9,
+      "title": "Out-of-bounds heap read in BLOB checksum over attacker-declared span",
+      "description": "handle_blob copies the body into `malloc(len)` then calls `checksum(copy+2, declared)` (line 73), iterating `declared` bytes. `declared` is an in-band u16 independent of the real body length, so `declared > len-2` reads past the heap allocation.",
+      "exploit_scenario": "A BLOB record declaring 5000 bytes with a 2-byte body reads ~5000 bytes past the allocation — an out-of-bounds read (info leak / crash).",
+      "recommendation": "Clamp `declared` to the actual available body length before the checksum walk.",
+      "confidence_reason": "Read length taken from an in-band field with no bound against the copy size."
+    },
+    {
+      "id": "F-004",
+      "file": "src/mrt.c",
+      "line": 88,
+      "category": "use-after-free",
+      "severity": "MEDIUM",
+      "confidence": 0.9,
+      "title": "Use-after-free of remembered payload across REF/DROP/EMIT",
+      "description": "handle_drop calls `free(ps->last)` (line 88) without clearing `ps->last` or `ps->last_len`. A later EMIT sees `last_len != 0` and dereferences the freed pointer `ps->last[0]` (line 93). Requires record ordering REF -> DROP -> EMIT.",
+      "exploit_scenario": "Records REF (payload), DROP, then EMIT: EMIT reads freed heap memory — a use-after-free read.",
+      "recommendation": "Set `ps->last = NULL; ps->last_len = 0;` immediately after free.",
+      "confidence_reason": "Freed pointer left live and dereferenced on a reachable record ordering."
+    }
+  ],
+  "summary": {"total": 4, "high": 2, "medium": 2, "low": 0, "low_confidence": 0}
+}

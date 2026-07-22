@@ -1,0 +1,4 @@
+[21/Jul/2026:11:05:36 +0000] ERROR System.IO.FileNotFoundException: Could not find file '/var/issueblot/attachments/..%2f..%2f..%2f..%2f..%2fetc%2fpasswd' at IssueBlot.Files.AttachmentService.Read(String name)
+[21/Jul/2026:11:06:11 +0000] ERROR System.IO.FileNotFoundException: Could not find file '/var/issueblot/attachments/%2fetc%2fpasswd' at IssueBlot.Files.AttachmentService.Read(String name)
+[21/Jul/2026:11:06:52 +0000] ERROR System.InvalidOperationException: Synchronous operations are disallowed. Call ReadAsync or set AllowSynchronousIO to true. at IssueBlot.Restore.BackupService.Restore(Stream body)
+[21/Jul/2026:11:07:15 +0000] ERROR System.InvalidOperationException: Synchronous operations are disallowed. Call ReadAsync or set AllowSynchronousIO to true. at IssueBlot.Restore.BackupService.Restore(Stream body)
