@@ -1,0 +1,36 @@
+# MRT injected-bug target — drop-in for the reference harness targets/ dir.
+# Format mirrors targets/canary/config.yaml from the reference harness.
+image_tag: vuln-pipeline-mrt:latest
+
+# Local-only target — no upstream. These fields are required by the loader but
+# only used for display in the find prompt.
+github_url: "(local injected target — targets/mrt/src/mrt.c)"
+commit: "n/a"
+
+binary_path: /work/mrt
+source_root: /work
+build_command: gcc -O1 -g -fsanitize=address -fno-omit-frame-pointer -o /work/mrt /work/mrt.c
+# Benign input must run clean (exit 0, no sanitizer error) or the build stage
+# will treat the target as broken.
+test_command: /work/mrt /work/fixtures/valid.mrt
+
+# Focus areas name the attack surface WITHOUT describing the defect — this is a
+# discovery target, not a hint sheet. Each area is a distinct handler so the
+# find loop fans out and dedup sees distinct (crash_type, top_frame) tuples.
+focus_areas:
+  - "LABEL record (handle_label) — fixed-size stack buffer populated from a record body"
+  - "NUMS record (handle_nums) — array sized from an in-band count field"
+  - "BLOB record (handle_blob) — checksum walk driven by a declared-size field"
+  - "REF/DROP/EMIT lifecycle (handle_ref/handle_drop/handle_emit) — referenced-payload lifetime across records"
+
+# Intentionally empty — this is the answer-key-stripped view. The real bug
+# inventory lives OUTSIDE the scanned tree, in docs/answer-key/mrt-bugs.md.
+known_bugs: []
+
+attack_surface: |
+  Entry point is ./mrt <file>. The file is an "MRT1" container: a 6-byte header
+  (4-byte magic, 1-byte version, 1-byte record count) followed by typed records.
+  Each record is a 1-byte type, a little-endian u16 length, and a body of that
+  length. Every field is attacker-controlled and no field is validated against
+  the actual remaining input size before a handler runs. The REF/DROP/EMIT
+  records share a parser-scoped pointer whose lifetime spans multiple records.

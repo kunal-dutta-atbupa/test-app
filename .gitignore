@@ -53,3 +53,14 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# harness-testing: cloned upstream harness and run artifacts (kept out of tree)
+/defending-code-reference-harness/
+results/
+*.log
+mrt-inputs/
+
+# .NET build output
+bin/
+obj/
+
