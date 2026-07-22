@@ -1,0 +1,462 @@
+<title>Security harness — end-to-end run report</title>
+<style>
+  :root{
+    /* blue-biased slate neutrals — chosen, not defaulted */
+    --bg:#eaeef6; --panel:#ffffff; --panel-2:#f3f6fc; --border:#dae1ef;
+    --ink:#111a2e; --muted:#54607a; --faint:#8b95ad;
+    /* structural signal accent (never used for verdicts) */
+    --accent:#3358d4; --accent-soft:#3358d414;
+    /* semantic verdict colors */
+    --crit:#c23934; --crit-soft:#c2393414; --crit-ink:#b6322d;
+    --warn:#9a6a12; --warn-soft:#9a6a1216; --warn-ink:#8a5d0c;
+    --pass:#1c7a52; --pass-soft:#1c7a5216; --pass-ink:#1a7048;
+    --def:#0f7d6e; --def-soft:#0f7d6e14; --off:#bd3a2c; --off-soft:#bd3a2c14;
+    --serif:"Iowan Old Style","Charter","Palatino",Georgia,Cambria,"Times New Roman",serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+    --shadow:0 1px 2px rgba(17,26,46,.05), 0 10px 30px rgba(17,26,46,.06);
+    --maxw:1048px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0a0f1c; --panel:#111a2c; --panel-2:#16203466; --border:#26324c;
+      --ink:#e7edf9; --muted:#96a2bd; --faint:#63708c;
+      --accent:#6d92f5; --accent-soft:#6d92f51f;
+      --crit:#e5645c; --crit-soft:#e5645c1c; --crit-ink:#f0857e;
+      --warn:#d79a35; --warn-soft:#d79a3518; --warn-ink:#e0a94a;
+      --pass:#45b783; --pass-soft:#45b78318; --pass-ink:#5cc796;
+      --def:#3bbda8; --def-soft:#3bbda81a; --off:#e6716a; --off-soft:#e6716a1a;
+      --shadow:0 1px 2px rgba(0,0,0,.5), 0 14px 38px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#eaeef6; --panel:#ffffff; --panel-2:#f3f6fc; --border:#dae1ef;
+    --ink:#111a2e; --muted:#54607a; --faint:#8b95ad;
+    --accent:#3358d4; --accent-soft:#3358d414;
+    --crit:#c23934; --crit-soft:#c2393414; --crit-ink:#b6322d;
+    --warn:#9a6a12; --warn-soft:#9a6a1216; --warn-ink:#8a5d0c;
+    --pass:#1c7a52; --pass-soft:#1c7a5216; --pass-ink:#1a7048;
+    --def:#0f7d6e; --def-soft:#0f7d6e14; --off:#bd3a2c; --off-soft:#bd3a2c14;
+    --shadow:0 1px 2px rgba(17,26,46,.05), 0 10px 30px rgba(17,26,46,.06);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0f1c; --panel:#111a2c; --panel-2:#16203466; --border:#26324c;
+    --ink:#e7edf9; --muted:#96a2bd; --faint:#63708c;
+    --accent:#6d92f5; --accent-soft:#6d92f51f;
+    --crit:#e5645c; --crit-soft:#e5645c1c; --crit-ink:#f0857e;
+    --warn:#d79a35; --warn-soft:#d79a3518; --warn-ink:#e0a94a;
+    --pass:#45b783; --pass-soft:#45b78318; --pass-ink:#5cc796;
+    --def:#3bbda8; --def-soft:#3bbda81a; --off:#e6716a; --off-soft:#e6716a1a;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 14px 38px rgba(0,0,0,.4);
+  }
+
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px;}
+  ::selection{background:var(--accent-soft);}
+  a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px;}
+  a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px;}
+
+  /* ── masthead ─────────────────────────────────────────── */
+  header{padding:64px 0 8px;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0 0 18px;display:flex;align-items:center;gap:10px;}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(33px,5.4vw,54px);line-height:1.05;letter-spacing:-.015em;margin:0 0 18px;text-wrap:balance;}
+  .lede{font-size:clamp(16px,2vw,20px);color:var(--muted);max-width:66ch;margin:0 0 26px;}
+  .lede b{color:var(--ink);font-weight:600;}
+
+  /* telemetry metadata bar — like a device readout */
+  .telemetry{display:flex;flex-wrap:wrap;gap:8px;font-family:var(--mono);font-size:12px;margin-bottom:8px;}
+  .telemetry span{background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:5px 11px;color:var(--muted);}
+  .telemetry b{color:var(--ink);font-weight:600;}
+  .telemetry .live{color:var(--pass-ink);}
+  .telemetry .live::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--pass);margin-right:7px;vertical-align:1px;}
+
+  /* ── proof strip ─────────────────────────────────────── */
+  .proof{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin:34px 0 8px;box-shadow:var(--shadow);}
+  .proof .cell{background:var(--panel);padding:20px 18px 16px;}
+  .proof .n{font-family:var(--serif);font-size:34px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
+  .proof .n small{font-size:16px;color:var(--muted);font-weight:600;font-family:var(--serif);}
+  .proof .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-top:11px;line-height:1.45;}
+  .proof .cell.good .n{color:var(--pass-ink);} .proof .cell.crit .n{color:var(--crit-ink);} .proof .cell.warn .n{color:var(--warn-ink);}
+  .caption{font-size:13px;color:var(--faint);font-family:var(--mono);margin:14px 0 0;}
+
+  /* ── sections ────────────────────────────────────────── */
+  section{padding:52px 0;border-top:1px solid var(--border);}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin:0 0 8px;}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:600;flex:0 0 auto;}
+  h2{font-family:var(--serif);font-weight:600;font-size:clamp(23px,3.2vw,32px);line-height:1.12;letter-spacing:-.01em;margin:0;text-wrap:balance;}
+  .sec-head .path{font-family:var(--mono);font-size:14px;color:var(--muted);font-weight:400;}
+  .sec-head .flag{margin-left:auto;font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:100px;border:1px solid var(--border);color:var(--muted);white-space:nowrap;}
+  .flag.off{color:var(--off);border-color:var(--off);background:var(--off-soft);}
+  .flag.def{color:var(--def);border-color:var(--def);background:var(--def-soft);}
+  .kicker{font-size:15.5px;color:var(--muted);max-width:74ch;margin:14px 0 0;}
+  .kicker b{color:var(--ink);font-weight:600;}
+  .kicker code,code.k{font-family:var(--mono);font-size:.88em;background:var(--panel-2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;color:var(--ink);}
+
+  /* ── tables ──────────────────────────────────────────── */
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--panel);box-shadow:var(--shadow);margin-top:22px;}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px;}
+  th,td{text-align:left;padding:11px 15px;border-bottom:1px solid var(--border);vertical-align:top;}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--panel-2);}
+  tr:last-child td{border-bottom:none;}
+  td.mono,.mono-cell{font-family:var(--mono);font-size:12.5px;}
+  .sig{font-family:var(--mono);font-size:12px;color:var(--crit-ink);}
+  tbody tr:hover{background:var(--accent-soft);}
+
+  /* ── chips ───────────────────────────────────────────── */
+  .chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.02em;padding:2px 9px;border-radius:100px;white-space:nowrap;border:1px solid transparent;}
+  .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto;}
+  .chip.pass{color:var(--pass-ink);background:var(--pass-soft);border-color:var(--pass);}
+  .chip.crit{color:var(--crit-ink);background:var(--crit-soft);border-color:var(--crit);}
+  .chip.warn{color:var(--warn-ink);background:var(--warn-soft);border-color:var(--warn);}
+
+  /* ── evidence cards + terminal plates ────────────────── */
+  .cards{display:flex;flex-direction:column;gap:14px;margin-top:22px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;border-left:3px solid var(--border);}
+  .card.crit{border-left-color:var(--crit);} .card.warn{border-left-color:var(--warn);}
+  .card-head{display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap;padding:15px 18px 12px;}
+  .card-head .cwe{font-family:var(--mono);font-size:11.5px;color:var(--faint);}
+  .card-head h3{font-family:var(--sans);font-size:15.5px;margin:0;font-weight:650;flex:1 1 240px;letter-spacing:-.01em;}
+  .sink{font-family:var(--mono);font-size:12px;color:var(--muted);width:100%;word-break:break-word;}
+  .card-body{padding:0 18px 16px;}
+  .card-body>p{font-size:14px;color:var(--muted);margin:0 0 12px;}
+
+  .term{background:var(--panel-2);border:1px solid var(--border);border-radius:9px;overflow:hidden;}
+  .term-bar{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:8px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+  .term-bar::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--border);box-shadow:14px 0 0 var(--border),28px 0 0 var(--border);margin-right:6px;}
+  .term pre{margin:0;padding:13px 15px;font-family:var(--mono);font-size:12.5px;line-height:1.65;white-space:pre;color:var(--ink);overflow-x:auto;}
+  pre .c{color:var(--faint);} pre .in{color:var(--accent);font-weight:600;} pre .bad{color:var(--crit-ink);font-weight:600;} pre .ok{color:var(--pass-ink);} pre .amb{color:var(--warn-ink);}
+
+  .verdict{display:flex;gap:11px;align-items:flex-start;margin-top:13px;font-size:13.5px;}
+  .verdict .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding-top:3px;white-space:nowrap;flex:0 0 auto;}
+  .verdict .v{color:var(--ink);}
+
+  /* ── figure plates (fixed light so native diagrams always read) ── */
+  figure{margin:24px 0 0;background:#fbfcff;border:1px solid var(--border);border-radius:12px;padding:20px 18px 10px;box-shadow:var(--shadow);overflow-x:auto;}
+  figure .mermaid{display:flex;justify-content:center;min-width:520px;}
+  figcaption{font-family:var(--mono);font-size:11.5px;color:#7a869c;text-align:center;padding:12px 0 6px;letter-spacing:.02em;}
+
+  /* ── callouts / two-col ──────────────────────────────── */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px;}
+  @media (max-width:720px){.grid2{grid-template-columns:1fr;}}
+  .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);}
+  .box h4{margin:0 0 4px;font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);}
+  .box .big{font-family:var(--serif);font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0 0 8px;}
+  .box p{font-size:13.5px;color:var(--muted);margin:0;}
+  .box ul{margin:8px 0 0;padding-left:18px;} .box li{font-size:13.5px;margin:5px 0;color:var(--ink);}
+  .box li span{color:var(--muted);}
+
+  .callout{background:var(--accent-soft);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:12px;padding:20px 22px;margin-top:22px;}
+  .callout h4{margin:0 0 12px;font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);}
+  .callout ul{margin:0;padding-left:20px;} .callout li{margin:9px 0;font-size:14.5px;}
+  .callout li b{font-weight:650;}
+
+  .pull{font-family:var(--serif);font-size:clamp(20px,2.8vw,27px);line-height:1.3;font-weight:500;border-left:3px solid var(--accent);padding:6px 0 6px 22px;margin:26px 0 0;max-width:30ch;color:var(--ink);}
+
+  footer{padding:30px 0 64px;border-top:1px solid var(--border);font-family:var(--mono);font-size:12px;color:var(--faint);line-height:1.9;}
+  footer code{color:var(--muted);}
+  footer b{color:var(--muted);font-weight:600;}
+
+  @media (prefers-reduced-motion:no-preference){
+    .card,.box,.proof .cell{transition:transform .15s ease, box-shadow .15s ease;}
+    .card:hover{transform:translateY(-1px);}
+  }
+  @media (max-width:560px){.wrap{padding:0 16px;}header{padding-top:44px;}}
+</style>
+
+<div class="wrap">
+
+  <!-- ═══ MASTHEAD ═══ -->
+  <header>
+    <p class="eyebrow"><span class="dot"></span> defending-code-reference-harness · run report</p>
+    <h1>An AI security harness, run end to end on two planted-bug targets.</h1>
+    <p class="lede">The harness was exercised across its whole pipeline against two purpose-built, uncontaminated targets — a <b>C parser with an AddressSanitizer crash oracle</b> and a <b>.NET web API scanned statically, then attacked live</b>. Every planted bug was accounted for. The live pass then showed the part a static scan can't: <b>which findings actually fire over HTTP on .NET 8, and which the platform quietly neutralizes.</b></p>
+    <div class="telemetry">
+      <span class="live">run complete</span>
+      <span>date <b>2026-07-22</b></span>
+      <span>host <b>GitHub Codespace</b></span>
+      <span>gcc <b>13/14 · ASAN</b></span>
+      <span>.NET <b>8.0.423</b></span>
+      <span>docker <b>up</b></span>
+      <span>branch <b>feat/harness-testing</b></span>
+    </div>
+  </header>
+
+  <!-- ═══ PROOF STRIP ═══ -->
+  <div class="proof">
+    <div class="cell good"><div class="n">4<small>/4</small></div><div class="l">C crashes reproduced · distinct ASAN signatures</div></div>
+    <div class="cell good"><div class="n">6<small>/6</small></div><div class="l">static findings hit · 0 missed vs answer key</div></div>
+    <div class="cell crit"><div class="n">3<small>/5</small></div><div class="l">.NET sinks exploitable live over HTTP</div></div>
+    <div class="cell warn"><div class="n">2<small>/5</small></div><div class="l">real flaws, framework-latent on .NET 8</div></div>
+    <div class="cell good"><div class="n">2<small>/2</small></div><div class="l">log-hunt compromises caught cold</div></div>
+    <div class="cell"><div class="n">0</div><div class="l">false alarms on 248 benign requests</div></div>
+  </div>
+  <p class="caption">Every figure below traces to a committed input, a logged request, or a hash recomputed offline — no number is asserted without evidence.</p>
+
+  <!-- ═══ 01 — TWO MODES ═══ -->
+  <section>
+    <div class="sec-head"><span class="idx">01</span><h2>Two targets, two ways to be sure</h2></div>
+    <p class="kicker">The harness has two evaluation modes, and this repo ships one target built for each. The difference between them is whether there's an <b>oracle</b> — something that can mechanically prove a finding is real, with no human in the loop. That single distinction decides how much you can trust a result, and how much contamination matters.</p>
+    <figure>
+      <pre class="mermaid">%%{init:{'theme':'neutral','flowchart':{'htmlLabels':true}}}%%
+flowchart TB
+    subgraph repo["This repo — 2 planted-bug targets"]
+        MRT["targets/mrt<br/>C parser · 4 memory bugs"]
+        IB["targets/issueblot<br/>.NET web API · 5 web/crypto bugs"]
+    end
+    MRT ==> ORACLE
+    IB ==> STATIC
+    IB -. "live add-on" .-> LIVE
+    subgraph ORACLE["Mode A — execution oracle (C)"]
+        direction TB
+        O1["Build under AddressSanitizer"] --> O2["Feed a crafted input"] --> O3{"Sanitizer crash?"}
+        O3 -- yes --> O4["Verified bug — a real crash"]
+        O3 -- no --> O5["Not counted"]
+    end
+    subgraph STATIC["Mode B — static scan (.NET)"]
+        direction TB
+        S1["/vuln-scan reads source"] --> S2["Claims file · line · CWE"] --> S3["/triage verifies"]
+    end
+    subgraph LIVE["Live pentest (real HTTP)"]
+        direction TB
+        L1["Run the real server"] --> L2["Send attack requests"] --> L3["See what actually fires"]
+    end
+    classDef ok fill:#d6f0e2,stroke:#1c7a52,color:#14321f;
+    class O4 ok;</pre>
+      <figcaption>Fig. 1 — the two harness modes, plus the live pentest layered onto the .NET target.</figcaption>
+    </figure>
+    <div class="grid2">
+      <div class="box"><h4>Mode A · C target</h4><div class="big">Oracle: yes</div><p>A find means <code class="k">craft → run → verified crash</code>. Knowing a bug exists isn't enough — you must land a reproducing input. Contamination risk is <b>low</b>: recall can't fake a crash.</p></div>
+      <div class="box"><h4>Mode B · .NET target</h4><div class="big">Oracle: none</div><p>The scanner just <em>claims</em> "SQLi at line 21." Recall looks identical to discovery — so contamination risk is <b>high</b>, and the source is kept original and unmarked with the answer key stored outside the scanned tree.</p></div>
+    </div>
+  </section>
+
+  <!-- ═══ 02 — C ORACLE ═══ -->
+  <section>
+    <div class="sec-head"><span class="idx">02</span><h2>The C execution oracle</h2><span class="path">targets/mrt</span><span class="flag off">offense</span></div>
+    <p class="kicker">The strongest signal the harness produces: a bug counts only when a crafted input <b>actually crashes</b> the binary under AddressSanitizer, reproduced in a clean container. <code>mrt</code> is a tiny parser for a made-up binary format with four memory bugs, each in a different handler so they yield <b>four distinct crash classes</b> — enough for the find-loop to fan out and for dedup to see four separate signatures. Built from the committed <code class="k">Dockerfile</code>; the four crafting inputs were replayed.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Handler · line</th><th>Bug class</th><th>ASAN signature</th><th>Trigger</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">valid.mrt</td><td>— baseline</td><td class="mono-cell">none</td><td class="mono-cell">well-formed input</td><td><span class="chip pass">exit 0 clean</span></td></tr>
+          <tr><td class="mono">handle_label · 38</td><td>Stack overflow (write)</td><td class="sig">stack-buffer-overflow</td><td class="mono-cell">LABEL body &gt; 32 B</td><td><span class="chip crit">crash</span></td></tr>
+          <tr><td class="mono">handle_nums · 48</td><td>Heap overflow, u16 truncation</td><td class="sig">heap-buffer-overflow</td><td class="mono-cell">count = 16384</td><td><span class="chip crit">crash</span></td></tr>
+          <tr><td class="mono">handle_blob · 73</td><td>Heap overflow (read)</td><td class="sig">heap-buffer-overflow</td><td class="mono-cell">declared &gt; body</td><td><span class="chip crit">crash</span></td></tr>
+          <tr><td class="mono">handle_ref/drop/emit · 88</td><td>Use-after-free (read)</td><td class="sig">heap-use-after-free</td><td class="mono-cell">REF → DROP → EMIT</td><td><span class="chip crit">crash</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="verdict"><span class="k">verdict</span><span class="v"><b>Oracle sound — 4/4, one clean baseline.</b> A null result from the autonomous find-loop would now mean "the tool found nothing," not "the target is broken." The autonomous crash-hunt itself (<code class="k">vp-sandboxed run mrt</code>, 4-way parallel) is the token-gated, rate-limit-burning step — left for you to trigger; see the footer.</span></div>
+  </section>
+
+  <!-- ═══ 03 — STATIC SCAN ═══ -->
+  <section>
+    <div class="sec-head"><span class="idx">03</span><h2>The static scan</h2><span class="path">targets/issueblot</span><span class="flag off">offense</span></div>
+    <p class="kicker"><code>issueblot</code> is a six-file ASP.NET issue tracker. The <code class="k">/vuln-scan</code> skill reads source and reports candidates — it never runs anything. Output was graded against the sealed answer key. The key plants <b>five defects</b>; one file carries two independent issues (a weak hash <em>and</em> a hardcoded secret), so there are <b>six gradeable findings</b>. IDs below are canonical (V1–V5) so they stay consistent from scan through triage.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Planted defect</th><th>File</th><th>CWE</th><th>Scan verdict</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">V1</td><td>SQL injection</td><td class="mono-cell">Data/IssueRepository.cs</td><td class="mono-cell">89</td><td><span class="chip pass">found</span></td></tr>
+          <tr><td class="mono">V2</td><td>OS command injection</td><td class="mono-cell">Export/ReportExporter.cs</td><td class="mono-cell">78</td><td><span class="chip pass">found</span></td></tr>
+          <tr><td class="mono">V3</td><td>Insecure deserialization</td><td class="mono-cell">Restore/BackupService.cs</td><td class="mono-cell">502</td><td><span class="chip pass">found</span></td></tr>
+          <tr><td class="mono">V4</td><td>Path traversal</td><td class="mono-cell">Files/AttachmentService.cs</td><td class="mono-cell">22</td><td><span class="chip pass">found</span></td></tr>
+          <tr><td class="mono">V5a</td><td>Weak hash (unsalted MD5)</td><td class="mono-cell">Auth/PasswordHasher.cs</td><td class="mono-cell">327</td><td><span class="chip pass">found</span></td></tr>
+          <tr><td class="mono">V5b</td><td>Hardcoded secret (pepper)</td><td class="mono-cell">Auth/PasswordHasher.cs</td><td class="mono-cell">798</td><td><span class="chip pass">found</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="verdict"><span class="k">score</span><span class="v"><b>6/6 gradeable findings, 0 misses.</b> The two-in-one file was correctly split into V5a and V5b. The scan raised one extra plausible item — no authentication on any endpoint — which the answer key permits and which triage later dropped (§06).</span></div>
+  </section>
+
+  <!-- ═══ 04 — LIVE PENTEST ═══ -->
+  <section>
+    <div class="sec-head"><span class="idx">04</span><h2>The live pentest — real HTTP</h2><span class="path">targets/issueblot</span><span class="flag off">offense</span></div>
+    <p class="kicker">Static analysis proves a dangerous <b>sink</b> exists; it can't tell you whether the exploit survives the running app. So the .NET API was stood up as a live server (Kestrel :5080), seeded with a SQLite row marked <code class="k">CONFIDENTIAL</code>, and each endpoint attacked with real requests. The result splits the five sinks cleanly: <b>three fire, two are framework-latent on .NET 8.</b></p>
+    <figure>
+      <pre class="mermaid">%%{init:{'theme':'neutral'}}%%
+flowchart LR
+    Q["GET /issues/search"] --> Qs["string-concat SQL"] --> Qv["EXPLOITED<br/>dumped all rows + UNION"]
+    R["POST /reports/export"] --> Rs["/bin/sh -c + label"] --> Rv["EXPLOITED<br/>RCE, id output returned"]
+    U["POST /users/register"] --> Us["MD5 + hardcoded pepper"] --> Uv["EXPLOITED<br/>hash cracked offline"]
+    A["GET /attachments/{name}"] --> As["Path.Combine + ReadAllBytes"] --> Av["LATENT<br/>Kestrel kept %2f literal"]
+    B["POST /backups/restore"] --> Bs["TypeNameHandling.All"] --> Bv["LATENT<br/>sync body-read threw first"]
+    classDef ok fill:#d6f0e2,stroke:#1c7a52,color:#14321f;
+    classDef no fill:#f6e7c6,stroke:#96660f,color:#4a3410;
+    class Qv,Rv,Uv ok; class Av,Bv no;</pre>
+      <figcaption>Fig. 2 — each endpoint → its vulnerable sink → the live verdict.</figcaption>
+    </figure>
+
+    <div class="cards">
+      <!-- V1 -->
+      <div class="card crit">
+        <div class="card-head"><span class="cwe">V1 · CWE-89</span><h3>SQL injection — /issues/search</h3><span class="chip crit">exploited</span><span class="sink">sink · command.CommandText = "… LIKE '%" + query + "%' …"</span></div>
+        <div class="card-body">
+          <p>The <code class="k">q</code> parameter is concatenated straight into the query. A search that should match nothing returns every row — including the confidential one — and a UNION reads from an unrelated query.</p>
+          <div class="term"><div class="term-bar">GET /issues/search?q=…</div><pre><span class="c"># baseline — no such issue</span>
+?q=<span class="in">zzz-no-such-issue</span>              → <span class="ok">[]</span>
+
+<span class="c"># filter bypass — dump everything</span>
+?q=<span class="in">' OR 1=1--</span>                     → [<span class="bad">"CONFIDENTIAL: prod DB credentials rotation"</span>,
+                                     "Login page typo", "Dark mode request", …]
+
+<span class="c"># extraction from a different query</span>
+?q=<span class="in">' UNION SELECT sqlite_version()--</span>   → [<span class="bad">"3.41.2"</span>, …]</pre></div>
+          <div class="verdict"><span class="k">verdict</span><span class="v">Confirmed exploitable. Full read of the table regardless of the intended filter.</span></div>
+        </div>
+      </div>
+      <!-- V2 -->
+      <div class="card crit">
+        <div class="card-head"><span class="cwe">V2 · CWE-78</span><h3>OS command injection — /reports/export</h3><span class="chip crit">exploited · RCE</span><span class="sink">sink · Arguments = "-c \"pandoc … /tmp/report_" + label + ".out\""</span></div>
+        <div class="card-body">
+          <p>The <code class="k">label</code> is concatenated into a <code class="k">/bin/sh -c</code> string. Shell metacharacters break out and run commands as the server user; their stdout returns in the HTTP response.</p>
+          <div class="term"><div class="term-bar">POST /reports/export {"format":"html","label":"…"}</div><pre>label = <span class="in">x; id; echo INJECTED_ON_$(hostname); touch /tmp/pwned_by_issueblot; echo rce_ok #</span>
+
+<span class="c"># ← HTTP 200 response body (the injected command's stdout):</span>
+<span class="bad">uid=1000(vscode) gid=1000(vscode) groups=1000(vscode),999(docker),…</span>
+INJECTED_ON_codespaces-aa33f9
+rce_ok
+<span class="c"># host-FS side effect:</span> /tmp/pwned_by_issueblot  <span class="bad">created</span></pre></div>
+          <div class="verdict"><span class="k">verdict</span><span class="v">Confirmed remote code execution. <code class="k">id</code> output returned to the attacker; a file written to disk.</span></div>
+        </div>
+      </div>
+      <!-- V5 -->
+      <div class="card crit">
+        <div class="card-head"><span class="cwe">V5 · CWE-327 · 798</span><h3>Weak hash + hardcoded pepper — /users/register</h3><span class="chip crit">exploited</span><span class="sink">sink · MD5.Create() over (password + const Pepper = "s3cr3t-pepper-v1")</span></div>
+        <div class="card-body">
+          <p>Registration returns an MD5 hash peppered with a secret <em>hardcoded in the source</em>. Because the pepper is knowable and MD5 is fast, a leaked hash falls instantly.</p>
+          <div class="term"><div class="term-bar">POST /users/register → offline recompute</div><pre>server hash for "hunter2" = <span class="bad">A9B0C1B131E82593220F84C8C090D1EF</span>
+
+MD5("hunter2" + "s3cr3t-pepper-v1") = a9b0c1b131e82593220f84c8c090d1ef  <span class="bad">← MATCH (verified)</span>
+<span class="c"># pepper lifted from source → adds zero entropy to the attack</span></pre></div>
+          <div class="verdict"><span class="k">verdict</span><span class="v">Confirmed. Recomputing with the source-known pepper reproduces the server output exactly — the "secret" protects nothing.</span></div>
+        </div>
+      </div>
+      <!-- V4 -->
+      <div class="card warn">
+        <div class="card-head"><span class="cwe">V4 · CWE-22</span><h3>Path traversal — /attachments/{name}</h3><span class="chip warn">latent · framework-mitigated</span><span class="sink">sink · File.ReadAllBytes(Path.Combine(_storageRoot, name))</span></div>
+        <div class="card-body">
+          <p>The code has no containment check — a real <code class="k">../</code> or absolute path would escape the storage root. But over HTTP, .NET 8's Kestrel keeps <code class="k">%2f</code> <em>literal</em> for a single-segment <code class="k">{name}</code> route and normalizes real <code class="k">..</code> before routing, so the documented trigger never lands a real slash in the handler.</p>
+          <div class="term"><div class="term-bar">GET /attachments/…</div><pre><span class="c"># baseline — legit file inside the root</span>
+/attachments/<span class="in">notes.txt</span>                        → <span class="ok">"public release notes v1"</span>
+
+<span class="c"># documented traversal trigger — reaches the sink, but %2f stays literal:</span>
+/attachments/<span class="in">..%2f..%2f..%2f..%2fetc%2fpasswd</span>   → HTTP <span class="bad">500</span>
+   opened: '/var/issueblot/attachments/<span class="amb">..%2f..%2f..%2fetc%2fpasswd</span>'  ← not decoded</pre></div>
+          <div class="verdict"><span class="k">verdict</span><span class="v">Real code flaw, <b>not exploitable over this route on default Kestrel.</b> Would fire behind a proxy that decodes <code class="k">%2f</code>, or from any non-HTTP caller of <code class="k">Read()</code>. Static was right about the sink; live testing bounded the reachability.</span></div>
+        </div>
+      </div>
+      <!-- V3 -->
+      <div class="card warn">
+        <div class="card-head"><span class="cwe">V3 · CWE-502</span><h3>Insecure deserialization — /backups/restore</h3><span class="chip warn">sink proven · HTTP path guarded</span><span class="sink">sink · JsonConvert.DeserializeObject(body, { TypeNameHandling.All })</span></div>
+        <div class="card-body">
+          <p>Over HTTP the endpoint throws before the deserializer runs — <code class="k">reader.ReadToEnd()</code> is a synchronous body read, which ASP.NET Core blocks by default (<code class="k">AllowSynchronousIO=false</code>). To prove the sink is genuinely dangerous, the target's <em>own compiled</em> <code class="k">Restore()</code> was invoked directly.</p>
+          <div class="term"><div class="term-bar">HTTP path → then direct invocation of the target's Restore()</div><pre><span class="c"># over HTTP, every body:</span> HTTP <span class="bad">500</span>  "Synchronous operations are disallowed"
+                        at BackupService.cs:16  <span class="c">(before the deserializer)</span>
+
+<span class="c"># direct call into the target's compiled method:</span>
+body <span class="in">{"note":"nightly"}</span>                        → JObject                    <span class="ok">(safe)</span>
+body <span class="in">{"$type":"System.Text.StringBuilder,…"}</span>   → <span class="bad">System.Text.StringBuilder</span>   ← arbitrary type from the wire
+body <span class="in">{"$type":"PwnGadget.RemoteCode, EvilAssembly"}</span> → <span class="bad">reaches for 'EvilAssembly'</span>  ← RCE precondition</pre></div>
+          <div class="verdict"><span class="k">verdict</span><span class="v"><code class="k">TypeNameHandling.All</code> honors an attacker <code class="k">$type</code> and reaches for attacker-named assemblies. <b>Not reachable via this endpoint as-wired;</b> reachable if the body read were async, or from any other caller.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 05 — REACHABILITY GAP ═══ -->
+  <section>
+    <div class="sec-head"><span class="idx">05</span><h2>The insight: static ≠ live reachability</h2></div>
+    <p class="kicker">Neither latent finding is a false positive — the code is genuinely unsafe in both. What the live pass adds is the <b>reachability verdict</b> the platform imposes on top of the source. That gap is precisely the information a live pentest contributes over a static scan, and it's what turns a flat list of five HIGHs into a ranked, deployment-aware picture.</p>
+    <figure>
+      <pre class="mermaid">%%{init:{'theme':'neutral'}}%%
+flowchart TB
+    S["Static scan: 5 sinks flagged — all correct"] --> LIVE{"Fires over HTTP?"}
+    LIVE -- "3 of 5" --> OK["Exploited live:<br/>SQLi · command-injection · weak-hash"]
+    LIVE -- "2 of 5" --> GAP["Blocked by the framework"]
+    GAP --> G1["Path traversal — Kestrel keeps %2f literal<br/>for a single-segment route and normalizes<br/>real '..' before routing → no real '/'"]
+    GAP --> G2["Deserialization — reader.ReadToEnd() is a sync<br/>body read, blocked by AllowSynchronousIO=false<br/>→ throws BEFORE the deserializer runs"]
+    classDef ok fill:#d6f0e2,stroke:#1c7a52,color:#14321f;
+    classDef no fill:#f6e7c6,stroke:#96660f,color:#4a3410;
+    class OK ok; class G1,G2 no;</pre>
+      <figcaption>Fig. 3 — the same five sinks, split by whether the .NET 8 platform lets the exploit through.</figcaption>
+    </figure>
+    <p class="pull">A real sink is not always a real exploit. The harness tells you which; a scanner alone can't.</p>
+  </section>
+
+  <!-- ═══ 06 — TRIAGE ═══ -->
+  <section>
+    <div class="sec-head"><span class="idx">06</span><h2>Triage — from raw scan to a ranked worklist</h2><span class="flag off">offense</span></div>
+    <p class="kicker">The <code class="k">/triage</code> skill re-derived each finding from source, re-scored by real exploitability, and folded in the live-reachability evidence. This is where a severity-inflated scan becomes a worklist you can hand to an engineer.</p>
+    <div class="grid2">
+      <div class="box"><h4>targets/mrt · C</h4><div class="big">4 in → 4 confirmed</div><p>2 HIGH, 2 MEDIUM, 0 dropped. Every finding is <b>execution-verified</b> under ASAN — unusually strong verification, so nothing needed manual follow-up.</p></div>
+      <div class="box"><h4>targets/issueblot · .NET</h4><div class="big">7 in → 4 + 2 + 1</div><p><b>4 exploitable-confirmed</b> (SQLi, RCE, both crypto issues), <b>2 real-but-gated</b> sent to needs-manual-test (deserialization, path traversal), <b>1 dropped</b>.</p></div>
+    </div>
+    <div class="callout">
+      <h4>The instructive part — triage doing its actual job</h4>
+      <ul>
+        <li>It <b>downgraded two scanner-HIGHs</b> (deserialization, path traversal) to needs-manual-test, because the live run proved their HTTP paths are gated — not because the code is safe.</li>
+        <li>It <b>dropped the no-auth finding</b> as missing-hardening-only: no standalone exploit, and auth is explicitly out of scope in the target's threat model. It survives as an <em>amplifier</em> recorded in the threat model, not a discrete bug.</li>
+        <li>It kept V5a and V5b <b>distinct</b> — fixing MD5 doesn't remove the hardcoded secret, so they're separate work items.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ═══ 07 — THREAT MODELS ═══ -->
+  <section>
+    <div class="sec-head"><span class="idx">07</span><h2>Threat models, derived from code</h2></div>
+    <p class="kicker">A separate pass ran <code class="k">threat-model bootstrap</code> on both targets — building a structured model from the code and git history with no owner interview, distinct from the hand-written models the targets ship. This is what <em>aims</em> the scan and tells triage which findings matter.</p>
+    <div class="grid2">
+      <div class="box"><h4>mrt.THREAT_MODEL.md</h4><div class="big">3 threats</div><p>Memory-corruption write → RCE; OOB-read / UAF disclosure; malformed-input DoS. Entry point: a single untrusted file.</p></div>
+      <div class="box"><h4>issueblot.THREAT_MODEL.md</h4><div class="big">6 threats</div><p>Two RCE paths, SQLi data-leak, arbitrary file-read, credential compromise, and the no-auth amplifier that widens every other threat.</p></div>
+    </div>
+  </section>
+
+  <!-- ═══ 08 — DNR ═══ -->
+  <section>
+    <div class="sec-head"><span class="idx">08</span><h2>The defensive half — detection &amp; response</h2><span class="flag def">defense</span></div>
+    <p class="kicker">Everything above is offense: find → exploit → fix. The harness also has a blue-team track that works over <b>logs, not source</b>. It had no target in this repo — so one was built from the <em>real</em> attack traffic the live pentest generated, mixed into a day of benign requests, and the hunt was run cold with no alert in hand.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Log subject</th><th>Ground truth</th><th>Hunt verdict</th><th>Match</th></tr></thead>
+        <tbody>
+          <tr><td>SQL injection · /issues/search</td><td class="mono-cell">confirmed_exploited</td><td class="mono-cell">INC-1 confirmed_exploited</td><td><span class="chip pass">correct</span></td></tr>
+          <tr><td>Command injection · /reports/export</td><td class="mono-cell">confirmed_exploited</td><td class="mono-cell">INC-2 confirmed_exploited</td><td><span class="chip pass">correct</span></td></tr>
+          <tr><td>Path traversal · /attachments</td><td class="mono-cell">attempted_not_vulnerable</td><td class="mono-cell">ruled_out</td><td><span class="chip pass">correct</span></td></tr>
+          <tr><td>Deserialization · /backups/restore</td><td class="mono-cell">attempted_not_vulnerable</td><td class="mono-cell">ruled_out</td><td><span class="chip pass">correct</span></td></tr>
+          <tr><td>Alert A-1002 · favicon 404</td><td class="mono-cell">benign</td><td class="mono-cell">ruled_out (benign)</td><td><span class="chip pass">correct</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="verdict"><span class="k">result</span><span class="v"><b>2/2 recall, 0 false positives across 248 benign requests.</b> The attacker (<code class="k">203.0.113.77</code>) was the <em>lowest</em>-volume of five IPs — caught by its <code class="k">curl</code> user-agent, not by volume. The two bugs exploited live are exactly the two that show up as real compromises in the logs; the two framework-mitigated flaws show up (correctly) as failed <em>attempts</em>.</span></div>
+    <div class="callout">
+      <h4>The detail worth its own alert</h4>
+      <ul><li>The alert queue fired only on an attack that <b>failed</b>, and stayed silent on <b>both that succeeded</b> — the exact detection-engineering gap the response plan exists to close. The loop closes here: offense and defense read the same two incidents from opposite ends.</li></ul>
+    </div>
+  </section>
+
+  <!-- ═══ 09 — WHAT THIS PROVES ═══ -->
+  <section>
+    <div class="sec-head"><span class="idx">09</span><h2>What this run proves — and what's next</h2></div>
+    <div class="callout">
+      <h4>Bottom line</h4>
+      <ul>
+        <li><b>The machinery works.</b> 4/4 verified crashes with distinct sanitizer signatures; 6/6 static findings with zero misses. A null result on unseen code would now be trustworthy — the tool is sound, not silent.</li>
+        <li><b>Live testing bounds reachability.</b> The static scan was right about all five .NET sinks; only three fire over HTTP as the app is wired on .NET 8. Naming that gap is what a live pass adds over a scan.</li>
+        <li><b>The loop closes end to end.</b> Model → find → prove → triage → fix → hunt → respond, with the same two incidents appearing as compromises on offense and as caught intrusions on defense.</li>
+        <li><b>Contamination is controlled.</b> Original, unmarked targets; answer keys kept outside the scanned trees. A find reflects reasoning, not recall.</li>
+      </ul>
+    </div>
+    <p class="kicker" style="margin-top:22px;">The one thing this run can't prove is capability on code the model has never seen — these targets are known-answer by construction, which is exactly what makes a null result meaningful. The natural next step is to point the same rig at genuinely unseen code: your own private repositories. That's the only fully uncontaminated capability test, and it's the thing worth measuring.</p>
+  </section>
+
+  <footer>
+    <b>Reproduce</b> · <code>bash scripts/verify-mrt-oracle.sh</code> (C oracle, deterministic, no token) · <code>bash scripts/setup.sh</code> (wire up the harness)<br>
+    <b>Static + live</b> · <code>/vuln-scan targets/issueblot</code> → <code>/triage</code>, then run the server and replay the requests above<br>
+    <b>Autonomous crash-hunt</b> · <code>bash scripts/run-c-oracle.sh</code> (needs CLAUDE_CODE_OAUTH_TOKEN + gVisor sandbox; burns rate limits)<br>
+    Sources · <code>docs/harness-run/</code> · triage, threat-models, dnr, and raw findings committed alongside this report.
+  </footer>
+
+</div>

@@ -1,9 +1,17 @@
 # What the harness did — run report
 
 A plain-English walkthrough of the run against this repo's two targets, with
-diagrams. For the visual dashboard, open [`results.html`](./results.html) (right-click
-→ *Open with Live Preview*, or open it in a browser). The raw static-scan output
-is in [`VULN-FINDINGS.json`](./VULN-FINDINGS.json) / [`.md`](./VULN-FINDINGS.md).
+diagrams. **The primary rich report is [`report.html`](./report.html)** — a single,
+self-contained document (open in a browser, or right-click → *Open with Live
+Preview*) that consolidates the oracle, static scan, live pentest, triage, threat
+models, and detection & response, with theme-aware native diagrams. The raw
+static-scan output is in [`VULN-FINDINGS.json`](./VULN-FINDINGS.json) /
+[`.md`](./VULN-FINDINGS.md).
+
+> `report.html` supersedes the earlier `results.html` (dashboard) and
+> `harness-report.html` (full report). It also unifies the finding IDs as
+> **V1–V5** — the earlier files number the .NET findings inconsistently between
+> the scan (`F-00x`) and triage (`f00x`), which `report.html` resolves.
 
 > **Run date:** 2026-07-22 · GitHub Codespace · gcc + ASAN, .NET 8.0.423, Docker up.
 
